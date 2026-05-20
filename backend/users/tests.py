@@ -152,7 +152,7 @@ class PermissionFlowTests(TestCase):
             format="json",
         )
         self.assertEqual(duplicate_student.status_code, 400)
-        self.assertIn("username", duplicate_student.json())
+        self.assertIn("enrollment_number", duplicate_student.json())
         self.assertIn("email", duplicate_student.json())
 
         invalid_phone = self.client.post(
@@ -181,6 +181,28 @@ class PermissionFlowTests(TestCase):
             format="json",
         )
         self.assertEqual(invalid_teacher_id.status_code, 400)
+
+    def test_deleted_student_enrollment_can_be_registered_again(self):
+        self.authenticate(self.admin)
+        delete_response = self.client.delete(f"/api/users/admin/users/{self.student.id}/")
+        self.assertEqual(delete_response.status_code, 204)
+        self.student.refresh_from_db()
+        self.assertFalse(self.student.is_active)
+        self.assertNotEqual(self.student.username, "1000000001")
+
+        create_response = self.client.post(
+            "/api/users/admin/users/",
+            {
+                "username": "1000000001",
+                "email": "new-student@example.com",
+                "role": "student",
+                "course": "BCA",
+                "mobile_number": "9876543210",
+            },
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(create_response.json()["username"], "1000000001")
 
     def test_non_admin_cannot_access_backup_or_templates(self):
         self.authenticate(self.student)

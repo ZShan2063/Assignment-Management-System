@@ -166,16 +166,16 @@ export default function AdminDashboard() {
     return values.some((value) => String(value ?? "").toLowerCase().includes(query));
   };
 
-  const getNextTeacherId = () => {
-    const maxId = users.reduce((max, user) => {
+  const getNextTeacherId = (sourceUsers: User[] = users) => {
+    const maxId = sourceUsers.reduce((max, user) => {
       const match = user.teacher_id?.match(/^T(\d+)$/i);
       return match ? Math.max(max, Number(match[1])) : max;
     }, 0);
     return `T${String(maxId + 1).padStart(3, "0")}`;
   };
 
-  const getNextEnrollmentNumber = () => {
-    const maxEnrollment = users.reduce((max, user) => {
+  const getNextEnrollmentNumber = (sourceUsers: User[] = users) => {
+    const maxEnrollment = sourceUsers.reduce((max, user) => {
       if (user.role !== "student") {
         return max;
       }
@@ -185,7 +185,7 @@ export default function AdminDashboard() {
     return String(maxEnrollment + 1);
   };
 
-  const getDefaultTeacherForm = () => ({
+  const getDefaultTeacherForm = (sourceUsers: User[] = users) => ({
     username: "",
     email: "",
     password: "",
@@ -194,7 +194,7 @@ export default function AdminDashboard() {
     role: "teacher",
     course: "BCA",
     semester: 1,
-    teacher_id: getNextTeacherId(),
+    teacher_id: getNextTeacherId(sourceUsers),
     mobile_number: "",
     gender: "Male",
     date_of_birth: "",
@@ -203,8 +203,8 @@ export default function AdminDashboard() {
     assigned_subjects: "",
   });
 
-  const getDefaultStudentForm = () => ({
-    username: getNextEnrollmentNumber(),
+  const getDefaultStudentForm = (sourceUsers: User[] = users) => ({
+    username: getNextEnrollmentNumber(sourceUsers),
     email: "",
     password: "",
     first_name: "",
@@ -261,9 +261,11 @@ export default function AdminDashboard() {
       setPrograms(programData);
       setAnalytics(analyticsData);
       setAuditLogs(auditData);
+      return { users: userData as User[] };
     } catch (error) {
       setMessageType("error");
       setMessage("Unable to load admin data.");
+      return null;
     }
   };
 
@@ -558,7 +560,17 @@ export default function AdminDashboard() {
       setTeacherImportFile(null);
       setStudentImportPreview(null);
       setTeacherImportPreview(null);
-      loadAdminData();
+      const loaded = await loadAdminData();
+      const latestUsers = loaded?.users || users;
+      if (!editingUserId) {
+        if (role === "students") {
+          setStudentDraft(null);
+          setUserForm(getDefaultStudentForm(latestUsers));
+        } else {
+          setTeacherDraft(null);
+          setUserForm(getDefaultTeacherForm(latestUsers));
+        }
+      }
     } catch (error) {
       setMessageType("error");
       setMessage(error instanceof Error ? error.message : "Unable to import CSV.");

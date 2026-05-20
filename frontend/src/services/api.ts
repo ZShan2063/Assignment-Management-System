@@ -1,7 +1,8 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 const fieldLabels: Record<string, string> = {
-  username: "Enrollment/Username",
+  username: "Username",
+  enrollment_number: "Enrollment",
   email: "Email",
   mobile_number: "Phone number",
   teacher_id: "Teacher ID",

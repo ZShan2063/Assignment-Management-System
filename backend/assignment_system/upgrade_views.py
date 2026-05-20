@@ -18,6 +18,7 @@ from assignments.models import Assignment
 from courses.models import Course, Program
 from submissions.models import Submission
 from users.models import User
+from users.serializers import release_inactive_identity_conflicts
 
 
 PASSING_SCORE = 40
@@ -98,16 +99,16 @@ def validate_import_row(role, row, row_number, seen_identifiers):
             errors.append("teacher_id is required")
         if not (cleaned.get("program") or cleaned.get("course")):
             errors.append("program is required")
-        if not cleaned.get("password") and not User.objects.filter(username=identifier).exists():
+        if not cleaned.get("password") and not User.objects.filter(username=identifier, is_active=True).exists():
             errors.append("password is required for new teachers")
     if identifier and identifier in seen_identifiers:
         errors.append("duplicate row in this CSV")
     if role == "teachers" and cleaned.get("teacher_id"):
         teacher_id = cleaned["teacher_id"]
-        duplicate_teacher = User.objects.filter(teacher_id=teacher_id).exclude(username=identifier).exists()
+        duplicate_teacher = User.objects.filter(teacher_id=teacher_id, is_active=True).exclude(username=identifier).exists()
         if duplicate_teacher:
             errors.append("teacher_id already belongs to another user")
-    if role == "students" and identifier and User.objects.filter(username=identifier).exclude(role="student").exists():
+    if role == "students" and identifier and User.objects.filter(username=identifier, is_active=True).exclude(role="student").exists():
         errors.append("enrollment number belongs to a non-student account")
     if identifier:
         seen_identifiers.add(identifier)
@@ -197,7 +198,7 @@ class UserImportView(APIView):
             seen_identifiers = set()
             for row_number, row in enumerate(reader, start=2):
                 cleaned, identifier, row_errors = validate_import_row(role, row, row_number, seen_identifiers)
-                status_text = "Will update" if identifier and User.objects.filter(username=identifier).exists() else "Will create"
+                status_text = "Will update" if identifier and User.objects.filter(username=identifier, is_active=True).exists() else "Will create"
                 if row_errors:
                     errors.append({"row": row_number, "error": "; ".join(row_errors)})
                     status_text = "Needs fix"
@@ -224,7 +225,8 @@ class UserImportView(APIView):
                     username = identifier
                     if not username:
                         raise ValueError("enrollment_number is required")
-                    user, was_created = User.objects.get_or_create(username=username, defaults={"role": "student"})
+                    release_inactive_identity_conflicts(username=username)
+                    user, was_created = User.objects.get_or_create(username=username, is_active=True, defaults={"role": "student"})
                     user.role = "student"
                     user.email = cleaned.get("email") or user.email or ""
                     user.mobile_number = cleaned.get("phone_number") or cleaned.get("mobile_number") or user.mobile_number or ""
@@ -234,7 +236,8 @@ class UserImportView(APIView):
                     username = identifier
                     if not username:
                         raise ValueError("username is required")
-                    user, was_created = User.objects.get_or_create(username=username, defaults={"role": "teacher"})
+                    release_inactive_identity_conflicts(username=username, teacher_id=cleaned.get("teacher_id"))
+                    user, was_created = User.objects.get_or_create(username=username, is_active=True, defaults={"role": "teacher"})
                     user.role = "teacher"
                     user.email = cleaned.get("email") or user.email or ""
                     user.teacher_id = cleaned.get("teacher_id") or user.teacher_id or ""

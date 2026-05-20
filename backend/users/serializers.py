@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework import serializers
 import re
 
@@ -7,8 +8,20 @@ User = get_user_model()
 ENROLLMENT_START = 1000000001
 
 
+def release_inactive_identity_conflicts(username=None, teacher_id=None):
+    timestamp = int(timezone.now().timestamp())
+    if username:
+        for user in User.objects.filter(username=username, is_active=False):
+            user.username = f"deleted-{user.pk}-{timestamp}-{user.username}"[:150]
+            user.save(update_fields=["username"])
+    if teacher_id:
+        for user in User.objects.filter(teacher_id=teacher_id, is_active=False):
+            user.teacher_id = f"DEL{user.pk}{timestamp}"[:20]
+            user.save(update_fields=["teacher_id"])
+
+
 def validate_email_unique(email, instance=None):
-    if email and User.objects.filter(email__iexact=email).exclude(pk=getattr(instance, "pk", None)).exists():
+    if email and User.objects.filter(email__iexact=email, is_active=True).exclude(pk=getattr(instance, "pk", None)).exists():
         raise serializers.ValidationError({"email": ["This email is already registered."]})
 
 
@@ -17,7 +30,7 @@ def validate_mobile_unique(mobile_number, instance=None):
         return
     if not re.fullmatch(r"\d{10,15}", str(mobile_number)):
         raise serializers.ValidationError({"mobile_number": ["Phone number must contain 10 to 15 digits."]})
-    if User.objects.filter(mobile_number=mobile_number).exclude(pk=getattr(instance, "pk", None)).exists():
+    if User.objects.filter(mobile_number=mobile_number, is_active=True).exclude(pk=getattr(instance, "pk", None)).exists():
         raise serializers.ValidationError({"mobile_number": ["This phone number is already registered."]})
 
 
@@ -33,7 +46,7 @@ def validate_teacher_id(teacher_id, instance=None):
         raise serializers.ValidationError({"teacher_id": ["Teacher ID is required for teachers."]})
     if not re.fullmatch(r"T\d{3,}", str(teacher_id)):
         raise serializers.ValidationError({"teacher_id": ["Teacher ID must look like T001, T002, etc."]})
-    if User.objects.filter(teacher_id=teacher_id).exclude(pk=getattr(instance, "pk", None)).exists():
+    if User.objects.filter(teacher_id=teacher_id, is_active=True).exclude(pk=getattr(instance, "pk", None)).exists():
         raise serializers.ValidationError({"teacher_id": ["This teacher ID is already taken."]})
 
 
@@ -114,10 +127,11 @@ class RegisterSerializer(serializers.ModelSerializer):
             try:
                 validate_student_enrollment(username)
             except serializers.ValidationError as exc:
-                errors.update(exc.detail)
-            if username and User.objects.filter(username=username).exists():
-                errors["username"] = ["This enrollment number is already registered."]
-        elif username and User.objects.filter(username=username).exists():
+                for key, value in exc.detail.items():
+                    errors["enrollment_number" if key == "username" else key] = value
+            if username and User.objects.filter(username=username, is_active=True).exists():
+                errors["enrollment_number"] = ["This enrollment number is already registered."]
+        elif username and User.objects.filter(username=username, is_active=True).exists():
             errors["username"] = ["This username is already taken."]
 
         if role == 'teacher':
@@ -134,6 +148,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        release_inactive_identity_conflicts(
+            username=validated_data.get("username"),
+            teacher_id=validated_data.get("teacher_id"),
+        )
         if validated_data.get('role') == 'student':
             validated_data['teacher_id'] = None
         password = validated_data.pop("password", "")

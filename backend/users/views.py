@@ -19,7 +19,7 @@ from rest_framework.throttling import AnonRateThrottle
 from audit.utils import log_action, log_delete_action
 from notifications.utils import notify_user
 from .models import EmailVerificationToken, PasswordResetToken
-from .serializers import RegisterSerializer, UserSerializer, validate_email_unique, validate_mobile_unique, validate_student_enrollment, validate_teacher_id
+from .serializers import RegisterSerializer, UserSerializer, release_inactive_identity_conflicts, validate_email_unique, validate_mobile_unique, validate_student_enrollment, validate_teacher_id
 
 User = get_user_model()
 
@@ -181,8 +181,9 @@ class CurrentUserView(generics.RetrieveAPIView):
         user = request.user
         username = request.data.get("username")
         if username and username != user.username:
-            if User.objects.filter(username=username).exclude(pk=user.pk).exists():
+            if User.objects.filter(username=username, is_active=True).exclude(pk=user.pk).exists():
                 return Response({"username": ["This username is already taken."]}, status=status.HTTP_400_BAD_REQUEST)
+            release_inactive_identity_conflicts(username=username)
             user.username = username
         user.first_name = request.data.get("first_name", user.first_name)
         user.last_name = request.data.get("last_name", user.last_name)
@@ -399,8 +400,9 @@ class AdminUserDetailView(APIView):
         user = self.get_user(pk)
         next_username = request.data.get("username")
         if next_username and next_username != user.username:
-            if User.objects.filter(username=next_username).exclude(pk=user.pk).exists():
+            if User.objects.filter(username=next_username, is_active=True).exclude(pk=user.pk).exists():
                 return Response({"username": ["This username is already taken."]}, status=status.HTTP_400_BAD_REQUEST)
+            release_inactive_identity_conflicts(username=next_username)
         next_teacher_id = request.data.get("teacher_id")
         if next_teacher_id and next_teacher_id != user.teacher_id:
             try:
@@ -469,7 +471,11 @@ class AdminUserDetailView(APIView):
             return Response({"detail": "You cannot delete your own admin account."}, status=status.HTTP_400_BAD_REQUEST)
         user = self.get_user(pk)
         log_delete_action(request.user, user, f"Admin deleted {user.role} {user.username}")
+        deleted_stamp = f"{user.pk}{int(timezone.now().timestamp())}"
+        user.username = f"deleted-{deleted_stamp}-{user.username}"[:150]
+        if user.teacher_id:
+            user.teacher_id = f"DEL{deleted_stamp}"[:20]
         user.is_active = False
         user.deleted_at = timezone.now()
-        user.save(update_fields=["is_active", "deleted_at"])
+        user.save(update_fields=["username", "teacher_id", "is_active", "deleted_at"])
         return Response(status=status.HTTP_204_NO_CONTENT)
