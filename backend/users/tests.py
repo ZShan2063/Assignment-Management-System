@@ -204,6 +204,21 @@ class PermissionFlowTests(TestCase):
         self.assertEqual(create_response.status_code, 201)
         self.assertEqual(create_response.json()["username"], "1000000001")
 
+    def test_deleted_student_enrollment_cannot_create_account(self):
+        self.student.is_active = False
+        self.student.deleted_at = timezone.now()
+        self.student.save(update_fields=["is_active", "deleted_at"])
+
+        lookup_response = self.client.get("/api/users/student/create-account/?username=1000000001")
+        create_response = self.client.post(
+            "/api/users/student/create-account/",
+            {"username": "1000000001", "password": "StrongPass123!", "first_name": "Raj", "last_name": "A"},
+            format="json",
+        )
+
+        self.assertEqual(lookup_response.status_code, 404)
+        self.assertEqual(create_response.status_code, 404)
+
     def test_non_admin_cannot_access_backup_or_templates(self):
         self.authenticate(self.student)
         backup_response = self.client.get("/api/upgrades/reports/backup/")

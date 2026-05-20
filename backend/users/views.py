@@ -105,7 +105,7 @@ class StudentAccountSetupView(APIView):
         if not enrollment_number:
             return Response({"username": ["Enrollment number is required."]}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            user = User.objects.get(username=enrollment_number, role="student")
+            user = User.objects.get(username=enrollment_number, role="student", is_active=True)
         except User.DoesNotExist:
             return Response({"detail": "Enrollment number was not found."}, status=status.HTTP_404_NOT_FOUND)
         return Response({
@@ -126,7 +126,7 @@ class StudentAccountSetupView(APIView):
         if not password:
             return Response({"password": ["Password is required."]}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            user = User.objects.get(username=enrollment_number, role="student")
+            user = User.objects.get(username=enrollment_number, role="student", is_active=True)
         except User.DoesNotExist:
             return Response({"detail": "Enrollment number was not found."}, status=status.HTTP_404_NOT_FOUND)
         if user.has_usable_password():
