@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -218,6 +219,27 @@ class PermissionFlowTests(TestCase):
 
         self.assertEqual(lookup_response.status_code, 404)
         self.assertEqual(create_response.status_code, 404)
+
+    def test_admin_student_creation_succeeds_when_email_fails(self):
+        self.authenticate(self.admin)
+
+        with patch("users.views.notify_user", side_effect=Exception("smtp unavailable")):
+            response = self.client.post(
+                "/api/users/admin/users/",
+                {
+                    "username": "1000000008",
+                    "email": "email-fail-student@example.com",
+                    "role": "student",
+                    "course": "BCA",
+                    "mobile_number": "9876543211",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(User.objects.filter(username="1000000008", is_active=True).exists())
+        self.assertFalse(response.json()["email_sent"])
+        self.assertIn("email could not be sent", response.json()["email_warning"])
 
     def test_non_admin_cannot_access_backup_or_templates(self):
         self.authenticate(self.student)

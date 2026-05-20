@@ -405,7 +405,12 @@ export default function AdminDashboard() {
       loadAdminData();
     } catch (error) {
       setMessageType("error");
-      setMessage(error instanceof Error ? error.message : "Unable to save user.");
+      if (!editingUserId && error instanceof TypeError && error.message === "Failed to fetch") {
+        await loadAdminData();
+        setMessage("Unable to confirm registration response. Refresh the page before trying again so you do not create a duplicate.");
+      } else {
+        setMessage(error instanceof Error ? error.message : "Unable to save user.");
+      }
     }
   };
 
