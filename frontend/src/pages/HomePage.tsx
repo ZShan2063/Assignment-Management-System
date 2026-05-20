@@ -14,7 +14,7 @@ export default function HomePage() {
         <Link to="/login?role=teacher" className="login-role-card">
           <span>Teacher</span>
           <strong>Login as Teacher</strong>
-          <small>Use username and password</small>
+          <small>Use Teacher ID and password</small>
         </Link>
         <Link to="/login?role=admin" className="login-role-card">
           <span>Admin</span>

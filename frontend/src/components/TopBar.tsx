@@ -14,18 +14,9 @@ export default function TopBar() {
           <span>Assignment Management System</span>
         </div>
         <div className="nav-links">
-          {user && isDashboardPage ? (
-            <>
-              <span className="badge">{user.role.toUpperCase()}</span>
-              <ThemeToggle />
-            </>
-          ) : user ? null : location.pathname === "/" ? null : (
-            <>
-              {location.pathname !== "/login" && <Link to="/">Login</Link>}
-              <ThemeToggle />
-            </>
-          )}
-          {!user && location.pathname === "/" && <ThemeToggle />}
+          {user && isDashboardPage && <span className="badge">{user.role.toUpperCase()}</span>}
+          {!user && location.pathname !== "/" && location.pathname !== "/login" && <Link to="/">Login</Link>}
+          <ThemeToggle />
         </div>
       </div>
     </header>
