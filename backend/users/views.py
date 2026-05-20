@@ -42,7 +42,7 @@ def password_error_response(password, user=None):
 
 def send_verification_email(request, user):
     if not user.email:
-        return
+        return False
     token = EmailVerificationToken.objects.create(user=user, token=secrets.token_urlsafe(32))
     frontend_url = request.data.get("frontend_url", "").rstrip("/") or request.headers.get("Origin", "").rstrip("/") or "http://localhost:5173"
     verify_url = f"{frontend_url}/verify-email?token={token.token}"
@@ -55,7 +55,8 @@ def send_verification_email(request, user):
         ),
         settings.DEFAULT_FROM_EMAIL,
         [user.email],
-    ).send(fail_silently=True)
+    ).send(fail_silently=False)
+    return True
 
 
 def is_admin_user(user):
@@ -139,7 +140,13 @@ class StudentAccountSetupView(APIView):
         user.email_verified = False
         user.set_password(password)
         user.save()
-        send_verification_email(request, user)
+        try:
+            send_verification_email(request, user)
+        except Exception:
+            return Response(
+                {"detail": "Account created, but verification email could not be sent. Please check SMTP settings or try login again to resend."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         log_action(user, "activated", user, "Student created account password")
         return Response({"detail": "Account created successfully. Please verify your email before login."})
 
@@ -165,7 +172,12 @@ class LoginView(APIView):
         if role and user.role != role and not (role == "admin" and user.is_superuser):
             return Response({"detail": f"This account is not registered as a {role}."}, status=status.HTTP_403_FORBIDDEN)
         if user.role == "student" and not user.email_verified:
-            return Response({"detail": "Please verify your email before login."}, status=status.HTTP_403_FORBIDDEN)
+            try:
+                send_verification_email(request, user)
+                detail = "Please verify your email before login. A new verification email has been sent."
+            except Exception:
+                detail = "Please verify your email before login. Verification email could not be sent, so check backend SMTP settings."
+            return Response({"detail": detail}, status=status.HTTP_403_FORBIDDEN)
         token, _ = Token.objects.get_or_create(user=user)
         return Response({"user": UserSerializer(user).data, "token": token.key})
 
