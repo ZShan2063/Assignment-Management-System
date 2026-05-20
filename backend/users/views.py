@@ -380,24 +380,32 @@ class AdminUserListCreateView(APIView):
         user = serializer.save()
         Token.objects.get_or_create(user=user)
         log_action(request.user, "created", user, f"Admin created {user.role} {user.username}")
+        email_sent = 0
+        email_warning = ""
         if user.email:
-            if user.role == "teacher":
-                notify_user(
-                    user,
-                    "Teacher account created",
-                    f"Your teacher account has been created. Teacher ID: {user.teacher_id or '-'}",
-                    email_subject="Teacher account created",
-                    email_message=f"Your teacher account has been created.\n\nTeacher ID: {user.teacher_id or '-'}\nUsername: {user.username}",
-                )
-            elif user.role == "student":
-                notify_user(
-                    user,
-                    "Student enrollment registered",
-                    f"Your enrollment number is {user.username}. Use it to create your student account.",
-                    email_subject="Student enrollment registered",
-                    email_message=f"Your enrollment has been registered.\n\nEnrollment Number: {user.username}\nProgram: {user.course or '-'}",
-                )
-        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+            try:
+                if user.role == "teacher":
+                    email_sent = notify_user(
+                        user,
+                        "Teacher account created",
+                        f"Your teacher account has been created. Teacher ID: {user.teacher_id or '-'}",
+                        email_subject="Teacher account created",
+                        email_message=f"Your teacher account has been created.\n\nTeacher ID: {user.teacher_id or '-'}\nUsername: {user.username}",
+                    )
+                elif user.role == "student":
+                    email_sent = notify_user(
+                        user,
+                        "Student enrollment registered",
+                        f"Your enrollment number is {user.username}. Use it to create your student account.",
+                        email_subject="Student enrollment registered",
+                        email_message=f"Your enrollment has been registered.\n\nEnrollment Number: {user.username}\nProgram: {user.course or '-'}",
+                    )
+            except Exception:
+                email_warning = "User was created, but email could not be sent. Please check SMTP settings."
+        response_data = UserSerializer(user).data
+        response_data["email_sent"] = bool(email_sent)
+        response_data["email_warning"] = email_warning
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class AdminUserDetailView(APIView):

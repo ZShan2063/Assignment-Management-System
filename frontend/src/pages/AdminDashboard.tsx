@@ -376,7 +376,18 @@ export default function AdminDashboard() {
         payload
       );
       setMessageType("success");
-      setMessage(editingUserId ? "User updated successfully." : userForm.role === "student" ? "Student registered successfully." : "User created successfully.");
+      setMessage(
+        savedUser.email_warning ||
+          (editingUserId
+            ? "User updated successfully."
+            : userForm.role === "student"
+              ? savedUser.email_sent
+                ? "Student registered successfully. Enrollment email sent."
+                : "Student registered successfully, but no enrollment email was sent."
+              : savedUser.email_sent
+                ? "User created successfully. Email sent."
+                : "User created successfully, but no email was sent.")
+      );
       if (!editingUserId && userForm.role === "student") {
         const nextEnrollment = Number(savedUser.username);
         setStudentDraft(null);

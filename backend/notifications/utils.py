@@ -12,7 +12,7 @@ def send_user_email(user, subject, message):
         message,
         settings.DEFAULT_FROM_EMAIL,
         [user.email],
-        fail_silently=True,
+        fail_silently=False,
     )
 
 
@@ -23,4 +23,4 @@ def notify_user(user, title, message, link=None, email_subject=None, email_messa
         message=message,
         link=link or "",
     )
-    send_user_email(user, email_subject or title, email_message or message)
+    return send_user_email(user, email_subject or title, email_message or message)
