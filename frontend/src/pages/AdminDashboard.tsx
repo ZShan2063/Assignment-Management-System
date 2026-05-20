@@ -655,6 +655,12 @@ export default function AdminDashboard() {
       updateUser(updatedUser);
       loadAdminData();
     } catch (error) {
+      if (passwordChanged && error instanceof TypeError && error.message === "Failed to fetch") {
+        window.alert("Account updated successfully. Please login again.");
+        logout();
+        navigate("/");
+        return;
+      }
       setMessageType("error");
       setMessage(error instanceof Error ? error.message : "Unable to update account. Make sure the username is unique.");
     }
