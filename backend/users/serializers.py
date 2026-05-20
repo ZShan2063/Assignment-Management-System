@@ -92,19 +92,45 @@ class RegisterSerializer(serializers.ModelSerializer):
             "password",
         ]
         extra_kwargs = {
-            'username': {'error_messages': {'unique': 'This enrollment number is already registered. Please choose a different one.'}},
+            "username": {"validators": []},
         }
 
     def validate(self, attrs):
         role = attrs.get('role')
-        validate_email_unique(attrs.get("email"))
-        validate_mobile_unique(attrs.get("mobile_number"))
+        errors = {}
+        username = attrs.get("username", "")
+
+        try:
+            validate_email_unique(attrs.get("email"))
+        except serializers.ValidationError as exc:
+            errors.update(exc.detail)
+
+        try:
+            validate_mobile_unique(attrs.get("mobile_number"))
+        except serializers.ValidationError as exc:
+            errors.update(exc.detail)
+
         if role == "student":
-            validate_student_enrollment(attrs.get("username", ""))
+            try:
+                validate_student_enrollment(username)
+            except serializers.ValidationError as exc:
+                errors.update(exc.detail)
+            if username and User.objects.filter(username=username).exists():
+                errors["username"] = ["This enrollment number is already registered."]
+        elif username and User.objects.filter(username=username).exists():
+            errors["username"] = ["This username is already taken."]
+
         if role == 'teacher':
-            validate_teacher_id(attrs.get("teacher_id"))
+            try:
+                validate_teacher_id(attrs.get("teacher_id"))
+            except serializers.ValidationError as exc:
+                errors.update(exc.detail)
+
         if role != 'student' and not attrs.get("password"):
-            raise serializers.ValidationError("Password is required.")
+            errors["password"] = ["Password is required."]
+
+        if errors:
+            raise serializers.ValidationError(errors)
         return attrs
 
     def create(self, validated_data):

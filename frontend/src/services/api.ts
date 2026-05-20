@@ -1,5 +1,13 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
+const fieldLabels: Record<string, string> = {
+  username: "Enrollment/Username",
+  email: "Email",
+  mobile_number: "Phone number",
+  teacher_id: "Teacher ID",
+  password: "Password",
+};
+
 const apiCall = async (
   endpoint: string,
   method: string = "GET",
@@ -50,7 +58,7 @@ const apiCall = async (
           } else if (typeof errorJson === "object") {
             const fieldMessages = Object.entries(errorJson)
               .map(([key, value]) =>
-                `${key}: ${Array.isArray(value) ? value.join(" ") : value}`
+                `${fieldLabels[key] || key}: ${Array.isArray(value) ? value.join(" ") : value}`
               )
               .join(" ");
             if (fieldMessages) {

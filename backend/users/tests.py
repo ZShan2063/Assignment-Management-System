@@ -138,6 +138,22 @@ class PermissionFlowTests(TestCase):
             format="json",
         )
         self.assertEqual(duplicate_email.status_code, 400)
+        self.assertIn("email", duplicate_email.json())
+
+        duplicate_student = self.client.post(
+            "/api/users/admin/users/",
+            {
+                "username": self.student.username,
+                "email": self.teacher.email,
+                "role": "student",
+                "course": "BCA",
+                "mobile_number": "9876543210",
+            },
+            format="json",
+        )
+        self.assertEqual(duplicate_student.status_code, 400)
+        self.assertIn("username", duplicate_student.json())
+        self.assertIn("email", duplicate_student.json())
 
         invalid_phone = self.client.post(
             "/api/users/admin/users/",
