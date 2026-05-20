@@ -9,6 +9,7 @@ from django.utils.decorators import method_decorator
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 import secrets
+import logging
 from rest_framework import generics, permissions, status
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import ValidationError as DRFValidationError
@@ -22,6 +23,7 @@ from .models import EmailVerificationToken, PasswordResetToken
 from .serializers import RegisterSerializer, UserSerializer, release_inactive_identity_conflicts, validate_email_unique, validate_mobile_unique, validate_student_enrollment, validate_teacher_id
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class LoginRateThrottle(AnonRateThrottle):
@@ -143,6 +145,7 @@ class StudentAccountSetupView(APIView):
         try:
             send_verification_email(request, user)
         except Exception:
+            logger.exception("Student verification email could not be sent for enrollment %s", user.username)
             return Response(
                 {"detail": "Account created, but verification email could not be sent. Please check SMTP settings or try login again to resend."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -176,6 +179,7 @@ class LoginView(APIView):
                 send_verification_email(request, user)
                 detail = "Please verify your email before login. A new verification email has been sent."
             except Exception:
+                logger.exception("Verification email resend failed for student %s", user.username)
                 detail = "Please verify your email before login. Verification email could not be sent, so check backend SMTP settings."
             return Response({"detail": detail}, status=status.HTTP_403_FORBIDDEN)
         token, _ = Token.objects.get_or_create(user=user)
@@ -327,6 +331,7 @@ class ForgotPasswordView(APIView):
         except BadHeaderError:
             return Response({"detail": "Invalid email header."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception:
+            logger.exception("Password reset email could not be sent for %s user %s", role, user.username)
             return Response(
                 {"detail": "Email could not be sent. Please check backend SMTP settings."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -401,6 +406,7 @@ class AdminUserListCreateView(APIView):
                         email_message=f"Your enrollment has been registered.\n\nEnrollment Number: {user.username}\nProgram: {user.course or '-'}",
                     )
             except Exception:
+                logger.exception("Admin-created %s email could not be sent for user %s", user.role, user.username)
                 email_warning = "User was created, but email could not be sent. Please check SMTP settings."
         response_data = UserSerializer(user).data
         response_data["email_sent"] = bool(email_sent)
